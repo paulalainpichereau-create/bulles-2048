@@ -110,9 +110,6 @@ body.fun .seg button{background:#fff;border:3px solid var(--fg)}
 body.fun .seg button.on{background:var(--cta);color:#fff}
 body.fun #menu{background:color-mix(in srgb,var(--bg2) 94%,transparent)}
 </style>
-</head>
-<body>
-
 
 <div id="wrap">
   <div class="hud">
@@ -236,6 +233,7 @@ function resize(){
   if(old&&balls)balls.forEach(b=>{const k=J.w/old.w;b.x=J.x+(b.x-old.x)*k;b.y=J.y+J.h-(old.y+old.h-b.y)*k;b.px=b.x;b.py=b.y;b.r=rad(b.l)});
 }
 addEventListener('resize',resize);resize();
+try{let ro0=cv.clientWidth+'x'+cv.clientHeight;new ResizeObserver(()=>{const k=cv.clientWidth+'x'+cv.clientHeight;if(k!==ro0){ro0=k;resize()}}).observe(cv)}catch(e){}
 
 // ---------- state ----------
 let best=+store.get('bulles-best',0)||0;
@@ -312,16 +310,17 @@ function drop(){
   cur=next;next=newItem();if(swapIn>0)swapIn--;drawNext();cool=0.4;sDrop();
 }
 function kill(b,col){b.dead=true;burst(b.x,b.y,col,16);pops.push({x:b.x,y:b.y,r:b.r,t:0,col})}
+let miss=null,tgt=null;
 function popAt(x,y){
-  const b=balls.find(b=>Math.hypot(b.x-x,b.y-y)<b.r);
-  if(!b)return;
+  let b=null,bd=1e9;for(const q of balls){const d=Math.hypot(q.x-x,q.y-y);if(d<q.r&&d<bd){bd=d;b=q}}
+  if(!b){miss={x,y,t:0};buzz(8);return}
   kill(b,colorOf(b));balls=balls.filter(q=>!q.dead);
   needles--;st.needle=true;armed=false;updNeedle();sPop();buzz(20);checkMissions();
 }
 let dragging=false;
-const pt=e=>{const b=cv.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top}};
-cv.addEventListener('pointerdown',e=>{au();if(paused)return;const p=pt(e);if(armed){popAt(p.x,p.y);return}dragging=true;aimX=p.x;cv.setPointerCapture(e.pointerId)});
-cv.addEventListener('pointermove',e=>{aimX=pt(e).x});
+const pt=e=>{const b=cv.getBoundingClientRect();return{x:(e.clientX-b.left)*W/b.width,y:(e.clientY-b.top)*H/b.height}};
+cv.addEventListener('pointerdown',e=>{au();if(paused)return;const p=pt(e);if(armed){popAt(p.x,p.y);tgt=null;return}dragging=true;aimX=p.x;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{const p=pt(e);aimX=p.x;if(armed){tgt=null;let bd=1e9;for(const q of balls){const d=Math.hypot(q.x-p.x,q.y-p.y);if(d<q.r&&d<bd){bd=d;tgt=q}}}});
 cv.addEventListener('pointerup',e=>{if(dragging){aimX=pt(e).x;drop()}dragging=false});
 addEventListener('keydown',e=>{
   if(!$('menu').hidden){if(e.code==='Escape')closeMenu();return}
@@ -592,8 +591,10 @@ function draw(t){
   balls.forEach(b=>{
     const s=reduce?1:1+(b.pop||0)*.15;
     if(armed){ctx.strokeStyle='rgba(255,107,107,.7)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(b.x,b.y,b.r+4,0,6.283);ctx.stroke()}
-    drawBall(b,b.x,b.y,b.r*s,t);
+    drawBall(b,b.x,b.y,b.r*s*(armed&&b===tgt?1.12:1),t);
+    if(armed&&b===tgt){ctx.strokeStyle='#ff4d4d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(b.x,b.y,b.r*1.12+3,0,6.283);ctx.stroke()}
   });
+  if(miss){miss.t+=1/60;if(miss.t>.4)miss=null;else{ctx.globalAlpha=1-miss.t/.4;ctx.strokeStyle='#ff4d4d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(miss.x,miss.y,8+miss.t*40,0,6.283);ctx.stroke();ctx.globalAlpha=1}}
   pops.forEach(p=>{ctx.strokeStyle=p.col;ctx.globalAlpha=1-p.t/.4;ctx.lineWidth=4;ctx.beginPath();ctx.arc(p.x,p.y,p.r*(1+p.t*2),0,6.283);ctx.stroke()});
   parts.forEach(q=>{ctx.globalAlpha=Math.max(0,q.life/.7);ctx.fillStyle=q.col;if(FUN){ctx.save();ctx.translate(q.x,q.y);ctx.rotate(q.rot);ctx.fillRect(-q.sz,-q.sz*.45,q.sz*2,q.sz*.9);ctx.restore()}else{ctx.beginPath();ctx.arc(q.x,q.y,q.sz,0,6.283);ctx.fill()}});
   ctx.globalAlpha=1;
@@ -605,6 +606,8 @@ reset();
 try{document.fonts.load('40px "Luckiest Guy"').then(()=>{for(const k in SPR)delete SPR[k];drawNext()})}catch(e){}
 if(store.get('bulles-seen-opts','0')!=='1'){store.set('bulles-seen-opts','1');openMenu()}
 requestAnimationFrame(loop);
+})();
+</script>
 })();
 </script>
 
